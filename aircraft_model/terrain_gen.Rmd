@@ -1,0 +1,76 @@
+---
+title: "terrain_gen"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Gen example
+
+```{r}
+gen_data_pts <- function(n) {
+    output_vec <- numeric(n)
+    plain_area <- c(0, 1000)
+    peak_area <- c(4000, 9000)
+    fixed_sd <- 0.2
+    cur_pt <- 500
+    cur_sign <- 1
+    for (i in 1:n) {
+        output_vec[i] <- cur_pt
+        # Rejection to differentiate from Brownian motion
+        while (TRUE) {
+            if (cur_pt >= plain_area[1] && cur_pt <= plain_area[2]) {
+                # plain logic
+                cur_mean <- 5
+            }
+            if (cur_pt >= peak_area[1] && cur_pt <= peak_area[2]) {
+                # peak logic
+                cur_mean <- 5
+            } else {
+                # hill logic
+                cur_mean <- runif(1, 0, 2)
+            }
+            cur_slope <- rnorm(1, mean = cur_mean, sd = fixed_sd)
+            break
+        }
+        # Sign Logic
+        # High chance to go up in plain_area
+        # Legit chance to go downhills in peak_area
+        # Minor chance to flip in other areas
+        if (cur_pt >= plain_area[1] && cur_pt <= plain_area[2]) {
+            # plain logic
+            u <- runif(1, 0, 1.2 - abs(cur_pt - plain_area[1]) / (plain_area[2] - plain_area[1]))
+            if (u >= 0.5) {
+                cur_sign <- 1
+            }
+        }
+        if (cur_pt >= peak_area[1] && cur_pt <= peak_area[2]) {
+            # peak logic
+            u <- runif(1, 0, 1 - abs(cur_pt - peak_area[2]) / (plain_area[2] - plain_area[1]))
+            if (u >= 0.5) {
+                cur_sign <- -1
+            }
+        } else {
+            # hill logic
+            u <- runif(1, 0, 5)
+            if (u < 0.02) {
+                cur_sign <- -cur_sign
+            }
+        }
+        # Finally, clip logic to make sure pts are in range
+        cur_pt <- cur_sign * cur_slope + cur_pt
+        if (cur_pt < plain_area[1]) cur_pt <- plain_area[1]
+        if (cur_pt > peak_area[2]) cur_pt <- peak_area[2]
+    }
+    output_vec
+}
+```
+
+```{r}
+n <- 1000
+x <- 1:n
+y <- gen_data_pts(n)
+plot(x, y)
+```
