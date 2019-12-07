@@ -1,0 +1,36 @@
+---
+title: "terrain_gen"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Simulate aircraft
+
+### Parameter Setup
+
+```{r}
+min_v <- 1
+max_v <- 10
+aircraft_height <- 12000
+```
+
+```{r}
+set.seed(12345)
+dataset <- read.csv("terrain.csv")$x # TODO: read from data
+cur_x <- 1
+max_x <- length(dataset)
+air_pos <- numeric()
+while (cur_x <= max_x) {
+    air_pos <- append(air_pos, c(cur_x)) # dynamic append
+    cur_x <- cur_x + sample(min_v:max_v, 1)
+}
+ground_true_height <- dataset[air_pos]
+```
+
+```{r}
+plot(1:length(air_pos), air_pos, main = "Aircraft true position")
+plot(1:length(air_pos), ground_true_height, main = "Aircraft true altitude measurement")
+```

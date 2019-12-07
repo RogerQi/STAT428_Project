@@ -69,8 +69,15 @@ gen_data_pts <- function(n) {
 ```
 
 ```{r}
+set.seed(1221112)
 n <- 1000
 x <- 1:n
 y <- gen_data_pts(n)
 plot(x, y)
+```
+
+### Write to a file for reading
+
+```{r}
+write.csv(y, file = "terrain.csv")
 ```
