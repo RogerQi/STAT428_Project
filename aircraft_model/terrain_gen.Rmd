@@ -13,8 +13,8 @@ knitr::opts_chunk$set(echo = TRUE)
 gen_data_pts <- function(n) {
     output_vec <- numeric(n)
     plain_area <- c(0, 400)
-    peak_area <- c(1000, 2000)
-    fixed_sd <- 1
+    peak_area <- c(800, 1200)
+    fixed_sd <- 2
     cur_pt <- 200
     cur_sign <- 1
     for (i in 1:n) {
@@ -23,14 +23,14 @@ gen_data_pts <- function(n) {
         while (TRUE) {
             if (cur_pt >= plain_area[1] && cur_pt <= plain_area[2]) {
                 # plain logic
-                cur_mean <- 5
+                cur_mean <- 3
             }
             if (cur_pt >= peak_area[1] && cur_pt <= peak_area[2]) {
                 # peak logic
-                cur_mean <- 5
+                cur_mean <- 3
             } else {
                 # hill logic
-                cur_mean <- runif(1, 0, 2)
+                cur_mean <- runif(1, 0, 3)
             }
             cur_slope <- rnorm(1, mean = cur_mean, sd = fixed_sd)
             break
@@ -54,7 +54,7 @@ gen_data_pts <- function(n) {
             }
         } else {
             # hill logic
-            u <- runif(1, 0, )
+            u <- runif(1, 0, 5)
             if (u < 0.02) {
                 cur_sign <- -cur_sign
             }
