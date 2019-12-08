@@ -36,11 +36,51 @@ ground_true_height <- dataset[air_pos]
 
 ```{r}
 plot(1:length(air_pos), air_pos, main = "Aircraft true position")
-plot(1:length(air_pos), ground_true_height, main = "Aircraft true altitude measurement")
+plot(1:length(air_pos), ground_true_height,main = "Aircraft true altitude measurement")
 ```
 
 ```{r}
 noise_vec <- rnorm(length(ground_true_height), mean = noise_mean, sd = noise_sd)
 observed_vec <- ground_true_height + noise_vec
 plot(1:length(air_pos), observed_vec, main = "Aircraft instrument altitude measurement")
+```
+
+```{r}
+#Using Bootstrap to resample Aircraft instrument altitude measured data
+#normal Bootstrap
+resample_boot = function(B, n) {
+  Tboot = numeric(B)
+  for(b in 1:B){
+    xb = sample(observed_vec, n, replace = TRUE)
+    Tboot[b] = mean(xb)
+  }
+  plot(1:length(air_pos), observed_vec,xlab='b', ylab='heiht', main = "Bootstrap Resampling")
+
+  lines(1:length(Tboot), Tboot,main = "Bootstrap Resampling",col='gold')
+}
+resample_boot(length(air_pos),20)
+
+```
+```{r}
+#Resampling
+resample = function(N,M) {
+  resampled_vec <- numeric()#vector to store resampling data
+  for(i in 1:N) {
+    xr = sample(ground_true_height,N,replace = TRUE) #take N samples with replacement
+    rand_speed=sample(1:10,1); #generate random speed
+    cur_weight = 1 / rand_speed #update weight
+    if(cur_weight > M) { 
+      resampled_vec=append(resampled_vec, c(xr[i])) #if weight > M, take sample i
+    }
+  }
+  plot(1:length(resampled_vec), xlab='x', ylab='height', resampled_vec,main = "Resampled Data",type='l',lwd =2)
+  noise_vec <- rnorm(length(resampled_vec),mean = noise_mean, sd = noise_sd)
+  resampled_noi_vec = resampled_vec + noise_vec #considering noise factor
+  lines(1:length(resampled_noi_vec), resampled_noi_vec,col='red')
+  legend(0, 1000,c("Without noise","With noise"),lwd=c(5,2),col=c("black","red"))
+  return(c(sd(ground_true_height), sd(resampled_vec)))
+}
+  
+resample(200,0.45)
+
 ```
