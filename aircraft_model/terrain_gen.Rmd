@@ -12,10 +12,10 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 gen_data_pts <- function(n) {
     output_vec <- numeric(n)
-    plain_area <- c(0, 400)
+    plain_area <- c(0, 200)
     peak_area <- c(800, 1200)
-    fixed_sd <- 2
-    cur_pt <- 200
+    fixed_sd <- 1
+    cur_pt <- 100
     cur_sign <- 1
     for (i in 1:n) {
         output_vec[i] <- cur_pt
@@ -30,7 +30,7 @@ gen_data_pts <- function(n) {
                 cur_mean <- 3
             } else {
                 # hill logic
-                cur_mean <- runif(1, 0, 3)
+                cur_mean <- rnorm(1, mean = 4, sd = 1)
             }
             cur_slope <- rnorm(1, mean = cur_mean, sd = fixed_sd)
             break
@@ -41,14 +41,14 @@ gen_data_pts <- function(n) {
         # Minor chance to flip in other areas
         if (cur_pt >= plain_area[1] && cur_pt <= plain_area[2]) {
             # plain logic
-            u <- runif(1, 0, 1.2 - abs(cur_pt - plain_area[1]) / (plain_area[2] - plain_area[1]))
+            u <- runif(1, 0, 1.15 - abs(cur_pt - plain_area[1]) / (plain_area[2] - plain_area[1]))
             if (u >= 0.5) {
                 cur_sign <- 1
             }
         }
         if (cur_pt >= peak_area[1] && cur_pt <= peak_area[2]) {
             # peak logic
-            u <- runif(1, 0, 1 - abs(cur_pt - peak_area[2]) / (peak_area[2] - peak_area[1]))
+            u <- runif(1, 0, 1.12 - abs(cur_pt - peak_area[2]) / (peak_area[2] - peak_area[1]))
             if (u >= 0.5) {
                 cur_sign <- -1
             }
@@ -73,7 +73,7 @@ set.seed(1221112)
 n <- 10000
 x <- 1:n
 y <- gen_data_pts(n)
-plot(x, y)
+plot(x, y, type = "l", main = "Simulated Terrain Map", xlab = "x-position", ylab = "Terrain Altitude")
 ```
 
 ### Write to a file for reading

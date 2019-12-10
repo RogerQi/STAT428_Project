@@ -1,0 +1,218 @@
+---
+title: "terrain_gen"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Install required package
+
+```{r}
+#install.packages("data.tree")
+#install.packages("tidyverse")
+library("data.tree")
+library("tidyverse")
+```
+
+## Naive Particle Filter
+
+```{r}
+# Read data
+dataset <- read.csv("simulated_dataset.csv")
+terrain_map <- dataset$terrain_map
+noiseless_measurements <- dataset$noiseless_measurements[!is.na(dataset$noiseless_measurements)]
+measurements <- dataset$measurements[!is.na(dataset$measurements)]
+
+ground_truth_pos <- dataset$true_aircraft_pos[!is.na(dataset$true_aircraft_pos)]
+# Read config
+config <- read.csv("config.csv")
+# min_v, max_v, aircraft_height, ra_noise_mean, ra_noise_sd
+```
+
+### Visualize data
+```{r}
+plot(terrain_map)
+plot(measurements)
+print(sprintf("Total measurement: %d", length(measurements)))
+```
+
+### Result evaluation metric
+
+```{r}
+# scaled MSE
+evaluate <- function(predicted_pos, true_pos = ground_truth_pos) {
+    # trim longer vector to the shorter one
+    # Better heuristic can be used to improve evaluation metric...
+    # e.g. linear regression to add missing value is not a bad idea.
+    target_len <- min(c(length(true_pos), length(predicted_pos)))
+    real_vec <- true_pos[1:target_len]
+    obs_vec <- predicted_pos[1:target_len]
+    diff_vec <- real_vec - obs_vec
+    sum(diff_vec^2) / (length(diff_vec))^2 # MSE
+}
+
+mse <- function(predicted_pos, true_pos = ground_truth_pos) {
+    evaluate(predicted_pos, true_pos)
+}
+
+aligned_mse <- function(predicted_pos, true_pos = ground_truth_pos) {
+    start_ind <- 1
+    while (start_ind < length(true_pos) && predicted_pos[1] > true_pos[start_ind]) {
+        start_ind <- start_ind + 1
+    }
+    if (start_ind == length(true_pos)) {
+        10000000 # Totally off; should not happen
+    } else {
+        trimmed_true_pos <- true_pos[start_ind:length(true_pos)]
+        mse(predicted_pos, trimmed_true_pos)
+    }
+}
+```
+
+### Utility function
+```{r}
+argmax <- function (vec) {which.max(vec)}
+
+calc_likelihood <- function(measured_dist, low_ind = 1, high_ind = length(terrain_map)) {
+    if (low_ind > high_ind || high_ind > length(terrain_map)) {
+        print("Hey")
+        stop("Index error")
+    }
+    noise_mean <- config$ra_noise_mean
+    noise_sd <- config$ra_noise_sd
+    aircraft_height <- config$aircraft_height
+    
+    height_terrain_below <- aircraft_height - measured_dist
+    # vectorized calculation to compute likelihood at each spot
+    likelihood_vec <- dnorm(height_terrain_below, terrain_map[low_ind:high_ind] + noise_mean, sd = noise_sd)
+    likelihood_vec
+}
+```
+
+## MLE estimator
+
+Assume that no prior knowledge was given. That is, we don't know the initial position of the aircraft
+or the range of velocity that the aircraft is capable of traveling. In this case, a common option to estimate
+the position would be Maximum Likelihood Estimator (MLE).
+
+First assume that we have an ideal radio altimeter. In this case, every measurement is accurate.
+
+### MLE with no noise
+
+```{r}
+predicted_vec <- numeric(length(measurements))
+for (i in 1:length(predicted_vec)) {
+    predicted_vec[i] <- argmax(calc_likelihood(noiseless_measurements[i]))
+}
+plot(predicted_vec)
+print(sprintf("MSE with noiseless measurements: %f", evaluate(predicted_vec)))
+```
+
+Observe that we have zero Mean Squared Error (MSE). That means, we can determine the pricise coordinate
+of our aircraft without any sort of prior knowledge. However, real life is not perfect. There are some
+noise inherent from the sensor that we use to send out the signal. We can run the same procedure against
+noisy measurements.
+
+### MLE with noise
+
+```{r}
+predicted_vec <- numeric(length(measurements))
+for (i in 1:length(predicted_vec)) {
+    predicted_vec[i] <- argmax(calc_likelihood(measurements[i]))
+}
+plot(predicted_vec)
+print(sprintf("MSE with noisy measurementsk: %f", evaluate(predicted_vec)))
+```
+
+We have a very, very large MSE and the plot produced shows a diverge pattern, which implies that the 
+estimation is almost meaningless. Now we may assume that we know the range of the velocity that the
+aircraft is traveling. What can we do with this prior knowledge?
+
+## Naive Markov Chain
+
+A Markov-chain-based strategy which performs sequential updates may potentially be a good approach.
+However, there is a huge problem here: we do not know the initial position of the aircraft.
+We have to be extremely careful choosing one since the output is very sensitive to this.
+
+Here we use MLE to estimate the initial position of our aircraft.
+
+```{r}
+initial_pos <- argmax(calc_likelihood(measurements[1]))
+cur_pos <- initial_pos
+max_pos <- length(terrain_map)
+predicted_vec <- numeric()
+cur_measurement_counter <- 2
+while (cur_pos <= max_pos) {
+    predicted_vec <- append(predicted_vec, c(cur_pos))
+    possible_vel <- config$min_v:config$max_v
+    candidate_next_pos <- cur_pos + possible_vel
+    candidate_next_pos <- candidate_next_pos[candidate_next_pos <= length(terrain_map)]
+    if (length(candidate_next_pos) == 0 || cur_measurement_counter > length(measurements)) {
+        cur_pos <- max_pos + 1 # halt
+    } else {
+        # got some valid candidates
+        candidate_len <- length(candidate_next_pos)
+        candidate_likelihood <- calc_likelihood(measurements[cur_measurement_counter],
+                                                low_ind = candidate_next_pos[1],
+                                                high_ind = candidate_next_pos[candidate_len])
+        cur_measurement_counter <- cur_measurement_counter + 1
+        cur_pos <- candidate_next_pos[argmax(candidate_likelihood)]
+    }
+}
+plot(predicted_vec)
+print(sprintf("Trimmed MSE: %f", aligned_mse(predicted_vec)))
+```
+
+The output makes a lot more sense and MSE is reduced by a few order of magnitudes. Note that in our
+implementation, the update to each state depends only on current state. Therefore it's a Markov chain.
+
+Note that for simplicity, the initial position of the aircraft in the dataset was set to $1$, though we
+assumed it was unknown. Also observe that from the plot we know that the MLE estimator estimates that
+the aircraft starts at a location that differs very much from the true initial position. This introduced
+most of the errors.
+
+Just for fun, what if we assume that we have an oracle that tells us out initial location?
+```{r}
+initial_pos <- 1
+cur_pos <- initial_pos
+max_pos <- length(terrain_map)
+predicted_vec <- numeric()
+my_likelihood_vec <- c()
+cur_measurement_counter <- 2
+while (cur_pos <= max_pos) {
+    predicted_vec <- append(predicted_vec, c(cur_pos))
+    possible_vel <- config$min_v:config$max_v
+    candidate_next_pos <- cur_pos + possible_vel
+    candidate_next_pos <- candidate_next_pos[candidate_next_pos <= length(terrain_map)]
+    if (length(candidate_next_pos) == 0 || cur_measurement_counter > length(measurements)) {
+        cur_pos <- max_pos + 1 # halt
+    } else {
+        # got some valid candidates
+        candidate_len <- length(candidate_next_pos)
+        candidate_likelihood <- calc_likelihood(measurements[cur_measurement_counter],
+                                                low_ind = candidate_next_pos[1],
+                                                high_ind = candidate_next_pos[candidate_len])
+        cur_measurement_counter <- cur_measurement_counter + 1
+        my_likelihood_vec <- append(my_likelihood_vec, c(max(candidate_likelihood)))
+        cur_pos <- candidate_next_pos[argmax(candidate_likelihood)]
+    }
+}
+plot(predicted_vec)
+print(sprintf("MSE: %f", mse(predicted_vec)))
+```
+
+## Particle filter with backtracking
+
+```{r}
+# Hyperparameters
+resampling_size <- 300
+```
+
+```{r}
+predicted_vec <- read.csv("particle_filter.csv")$x
+plot(predicted_vec, type = "l", col = "red")
+lines(ground_truth_pos)
+mse(predicted_vec)
+```

@@ -1,5 +1,5 @@
 ---
-title: "terrain_gen"
+title: "Toy Aircraft Model"
 output: html_document
 ---
 
@@ -14,11 +14,22 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 min_v <- 1
 max_v <- 10
-aircraft_height <- 12000
+aircraft_height <- 3000
 
 # noise parameters
-noise_mean <- 0 # assume that bias is correct
-noise_sd <- 50
+noise_mean <- 0 # assume that bias is corrected
+noise_sd <- 10
+```
+
+### Save configs for reproducibility
+
+```{r}
+aircraft_model_config <- data.frame("min_v" = min_v,
+                                    "max_v" = max_v,
+                                    "aircraft_height" = aircraft_height,
+                                    "ra_noise_mean" = noise_mean,
+                                    "ra_noise_sd" = noise_sd)
+write.csv(aircraft_model_config, file = "../config.csv")
 ```
 
 ```{r}
@@ -31,16 +42,31 @@ while (cur_x <= max_x) {
     air_pos <- append(air_pos, c(cur_x)) # dynamic append
     cur_x <- cur_x + sample(min_v:max_v, 1)
 }
-ground_true_height <- dataset[air_pos]
+altimeter_height <- aircraft_height - dataset[air_pos]
 ```
 
 ```{r}
 plot(1:length(air_pos), air_pos, main = "Aircraft true position")
-plot(1:length(air_pos), ground_true_height, main = "Aircraft true altitude measurement")
+plot(1:length(air_pos), altimeter_height, main = "Aircraft true altitude measurement")
 ```
 
 ```{r}
-noise_vec <- rnorm(length(ground_true_height), mean = noise_mean, sd = noise_sd)
-observed_vec <- ground_true_height + noise_vec
+noise_vec <- rnorm(length(altimeter_height), mean = noise_mean, sd = noise_sd)
+observed_vec <- altimeter_height + noise_vec
 plot(1:length(air_pos), observed_vec, main = "Aircraft instrument altitude measurement")
+```
+
+### Write to csv
+```{r}
+# Note that observed_vec and true_aircraft_pos have same length
+# that must be smaller than that of dataset
+# pad vectors
+observed_vec <- append(observed_vec, rep(NA, length(dataset) - length(observed_vec)))
+air_pos <- append(air_pos, rep(NA, length(dataset) - length(air_pos)))
+altimeter_height <- append(altimeter_height, rep(NA, length(dataset) - length(altimeter_height)))
+simulated_dataset <- data.frame("terrain_map" = dataset,
+                                "noiseless_measurements" = altimeter_height,
+                                "measurements" = observed_vec,
+                                "true_aircraft_pos" = air_pos)
+write.csv(simulated_dataset, file = "../simulated_dataset.csv")
 ```
